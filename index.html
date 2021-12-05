@@ -28,6 +28,7 @@ function main() {
 
     uniform mat4 uModelViewMatrix;
     uniform mat3 uNormalMatrix;
+    uniform mat4 u_scaleMatrix;
     uniform mat4 uProjectionMatrix;
 
     varying vec4 vColor;
@@ -38,7 +39,7 @@ function main() {
       // diffuse lighting from viewer headlight
       vColor = vec4(n.z,n.z,n.z,1.0);
 
-      gl_Position = uProjectionMatrix*uModelViewMatrix*vec4(aVertexPosition, 1.0);
+      gl_Position = uProjectionMatrix*uModelViewMatrix*u_scaleMatrix*vec4(aVertexPosition, 1.0);
     }
   `;
 
@@ -73,6 +74,7 @@ function main() {
   var modelview_uniform = gl.getUniformLocation(shaderProgram, "uModelViewMatrix"); 
   var normal_uniform = gl.getUniformLocation(shaderProgram, "uNormalMatrix"); 
   var projection_uniform = gl.getUniformLocation(shaderProgram, "uProjectionMatrix"); 
+  var scale_matrix = gl.getUniformLocation(shaderProgram, 'u_scaleMatrix');
 
   // set up vertex array object
  
@@ -124,7 +126,7 @@ function main() {
                 gl.STATIC_DRAW);
 
   function draw(time) {
-    gl.clearColor(0.0, (0.0 + .003*time) % 1.0, (0.0 + .001*time) % 1.0, 1.0);
+    gl.clearColor(0.0, (0.0 + .0001*time) % 1.0, (0.0 + .00015*time) % 1.0, 1.0);
     gl.clearDepth(1.0);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -135,12 +137,23 @@ function main() {
 
     var modelview = glMatrix.mat4.create();
     glMatrix.mat4.translate(modelview,modelview,[0.0, -1.5, -10.0]);
-    glMatrix.mat4.rotateY(modelview,modelview, time*0.009);
+    glMatrix.mat4.rotateY(modelview,modelview, time*0.001);
 
     var normalmatrix = glMatrix.mat3.create();
     glMatrix.mat3.normalFromMat4(normalmatrix,modelview);
 
     gl.useProgram(shaderProgram);
+
+    var S = 5;
+    var scaleMatrix = new Float32Array([
+      S,   0.0,  0.0,  0.0,
+      0.0,  S,   0.0,  0.0,
+      0.0,  0.0,  S,   0.0,
+      0.0,  0.0,  0.0,  1.0  
+    ]);
+
+    
+    gl.uniformMatrix4fv(scale_matrix, false, scaleMatrix);
 
     gl.uniformMatrix4fv(modelview_uniform, false, modelview);
     gl.uniformMatrix3fv(normal_uniform, false, normalmatrix);
