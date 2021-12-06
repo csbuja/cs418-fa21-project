@@ -1,0 +1,219 @@
+<!DOCTYPE HTML> 
+<html> 
+
+<body onload="main();">
+  <canvas id="myGLCanvas" width="500" height="500"></canvas>
+</body>
+
+<script src="unit teapot.js">
+  // var teapot = {positions: [...], faces: [...]};
+</script>
+
+<script src="gl-matrix-min.js"></script>
+
+<script>
+function main() {
+  // for debugging
+  //teapot = {positions: [-.5,-.5, 0, .5,-.5,0, -.5,.5,0, .5,.5,0],
+  //          faces: [0, 1, 2, 1, 2, 3]};
+
+  var canvas = document.getElementById("myGLCanvas");
+  var gl = canvas.getContext("webgl2");
+  if (!gl)
+    alert("Failed to create WebGL context!");
+
+  var vertexShaderSource = `
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uModelViewMatrix;
+    uniform mat3 uNormalMatrix;
+    uniform mat4 u_scaleMatrix;
+    uniform mat4 uProjectionMatrix;
+
+    varying vec4 vColor;
+
+    void main() {
+      vec3 n = uNormalMatrix*aVertexNormal;
+
+      // diffuse lighting from viewer headlight
+      vColor = vec4(n.z,n.z,n.z,1.0);
+
+      gl_Position = uProjectionMatrix*uModelViewMatrix*u_scaleMatrix*vec4(aVertexPosition, 1.0);
+    }
+  `;
+
+  var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vertexShader, vertexShaderSource);
+  gl.compileShader(vertexShader);
+  if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS))
+    alert(gl.getShaderInfoLog(vertexShader));
+   
+  var fragmentShaderSource = `#version 300 es
+
+precision mediump float;
+
+in vec3 n,l,v;
+
+out vec4 outColor;
+
+float my_max(float x, float y)
+{
+    if (x > y) return x;
+    return y;
+}
+
+float dot_prod(vec3 v1, vec3 v2)
+{
+    return my_max(v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2], 0.0);
+}
+
+float my_exp(float base, int n){
+    float ans = 1.0;
+    while(n > 0){
+        ans = ans * base;
+        n = n - 1;
+    }
+    return ans;
+}
+
+vec3 my_reflect(vec3 n, vec3 l){
+    return 2.0 * dot_prod(n,l) * n - l;
+}
+
+void main() {
+  vec3 normalized_n = normalize(n);
+  vec3 normalized_l = normalize(l);
+  vec3 normalized_v = normalize(v);
+  vec3 r = my_reflect(n,l);
+  
+  int GLEAM_EXPONENT = 10;
+  float diffuse_component = 0.5 * dot_prod(normalized_n,normalized_l);
+  float specular_component = 0.5 * my_exp(dot_prod(normalized_v,r), GLEAM_EXPONENT);
+
+  outColor = vec4(n,1.0);
+
+  outColor[0] = diffuse_component + specular_component;
+  outColor[1] = specular_component;
+  outColor[2] = specular_component;
+}
+  `;
+
+  var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fragmentShader, fragmentShaderSource);
+  gl.compileShader(fragmentShader);
+  if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS))
+    alert(gl.getShaderInfoLog(fragmentShader));
+     
+  var shaderProgram = gl.createProgram();
+  gl.attachShader(shaderProgram, vertexShader);
+  gl.attachShader(shaderProgram, fragmentShader);
+  gl.linkProgram(shaderProgram);
+  if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS))
+    alert("Failed to setup shaders");
+
+  var vert_pos_attr = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+  var vert_normal_attr = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+  var modelview_uniform = gl.getUniformLocation(shaderProgram, "uModelViewMatrix"); 
+  var normal_uniform = gl.getUniformLocation(shaderProgram, "uNormalMatrix"); 
+  var projection_uniform = gl.getUniformLocation(shaderProgram, "uProjectionMatrix"); 
+  var scale_matrix = gl.getUniformLocation(shaderProgram, 'u_scaleMatrix');
+
+  // set up vertex array object
+ 
+  var teapot_vao = gl.createVertexArray();
+  gl.bindVertexArray(teapot_vao);
+
+  // create a coordinate buffer of vertex positions and
+  // connect it to the vertex shader positions
+ 
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER,
+                new Float32Array(teapot.positions),
+                gl.STATIC_DRAW);
+
+  gl.enableVertexAttribArray(vert_pos_attr);
+  gl.vertexAttribPointer(vert_pos_attr, 3, gl.FLOAT, false, 0, 0);
+
+  // create a coordinate buffer of vertex positions and
+  // connect it to the vertex shader positions
+  // but normalize the normals first
+
+  var x,y,z,d,i;
+  for (i = 0; i < teapot.normals.length; i += 3) {
+    x = teapot.normals[i];
+    y = teapot.normals[i+1];
+    z = teapot.normals[i+2];
+
+    d = 1.0/Math.sqrt(x*x + y*y + z*z);
+
+    teapot.normals[i] *= d;
+    teapot.normals[i+1] *= d;
+    teapot.normals[i+2] *= d;
+    
+  }
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER,
+                new Float32Array(teapot.normals),
+                gl.STATIC_DRAW);
+
+  gl.enableVertexAttribArray(vert_normal_attr);
+  gl.vertexAttribPointer(vert_normal_attr, 3, gl.FLOAT, false, 0, 0);
+
+  // create an index buffer of triangle faces
+
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer()); 
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
+                new Uint16Array(teapot.faces),
+                gl.STATIC_DRAW);
+
+  function draw(time) {
+    gl.clearColor(0.0, (0.0 + .0001*time) % 1.0, (0.0 + .00015*time) % 1.0, 1.0);
+    gl.clearDepth(1.0);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    var projection = glMatrix.mat4.create();
+    glMatrix.mat4.perspective(projection, Math.PI/4, 1.0, 0.1);
+
+    var modelview = glMatrix.mat4.create();
+    glMatrix.mat4.translate(modelview,modelview,[0.0, -1.5, -10.0]);
+    glMatrix.mat4.rotateY(modelview,modelview, time*0.001);
+
+    var normalmatrix = glMatrix.mat3.create();
+    glMatrix.mat3.normalFromMat4(normalmatrix,modelview);
+
+    gl.useProgram(shaderProgram);
+
+    var S = 5;
+    var scaleMatrix = new Float32Array([
+      S,   0.0,  0.0,  0.0,
+      0.0,  S,   0.0,  0.0,
+      0.0,  0.0,  S,   0.0,
+      0.0,  0.0,  0.0,  1.0  
+    ]);
+
+    
+    gl.uniformMatrix4fv(scale_matrix, false, scaleMatrix);
+
+    gl.uniformMatrix4fv(modelview_uniform, false, modelview);
+    gl.uniformMatrix3fv(normal_uniform, false, normalmatrix);
+    gl.uniformMatrix4fv(projection_uniform, false, projection);
+
+    gl.bindVertexArray(teapot_vao);
+    gl.drawElements(gl.TRIANGLES,
+                    teapot.faces.length,
+                    gl.UNSIGNED_SHORT,
+                    0);
+
+    requestAnimationFrame(draw);
+  }
+
+  requestAnimationFrame(draw);
+}
+
+</script>
+
+</html>
