@@ -49,11 +49,54 @@ function main() {
   if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS))
     alert(gl.getShaderInfoLog(vertexShader));
    
-  var fragmentShaderSource = `
-    varying lowp vec4 vColor;
-    void main() {
-      gl_FragColor = vColor;
+  var fragmentShaderSource = `#version 300 es
+
+precision mediump float;
+
+in vec3 n,l,v;
+
+out vec4 outColor;
+
+float my_max(float x, float y)
+{
+    if (x > y) return x;
+    return y;
+}
+
+float dot_prod(vec3 v1, vec3 v2)
+{
+    return my_max(v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2], 0.0);
+}
+
+float my_exp(float base, int n){
+    float ans = 1.0;
+    while(n > 0){
+        ans = ans * base;
+        n = n - 1;
     }
+    return ans;
+}
+
+vec3 my_reflect(vec3 n, vec3 l){
+    return 2.0 * dot_prod(n,l) * n - l;
+}
+
+void main() {
+  vec3 normalized_n = normalize(n);
+  vec3 normalized_l = normalize(l);
+  vec3 normalized_v = normalize(v);
+  vec3 r = my_reflect(n,l);
+  
+  int GLEAM_EXPONENT = 10;
+  float diffuse_component = 0.5 * dot_prod(normalized_n,normalized_l);
+  float specular_component = 0.5 * my_exp(dot_prod(normalized_v,r), GLEAM_EXPONENT);
+
+  outColor = vec4(n,1.0);
+
+  outColor[0] = diffuse_component + specular_component;
+  outColor[1] = specular_component;
+  outColor[2] = specular_component;
+}
   `;
 
   var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);

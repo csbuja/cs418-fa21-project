@@ -35,22 +35,35 @@ uniform mat4 uProjectionMatrix;
 out vec2 vTexCoord;
 out vec3 vNormal;
 
-out vec3 n,l,v;
-out vec3 orig_vertex;
-
 void main() {
-
-  n = normalize(uNormalMatrix*aVertexNormal);
-  l = normalize(uNormalMatrix*vec3(1.0,0.25,0.0));
-  vec4 p = uModelViewMatrix*vec4(aVertexPosition, 1.0);
-  v = normalize(-p.xyz);
-  orig_vertex = aVertexPosition;
+  vTexCoord.s = aVertexPosition.x + 0.5;
+  vTexCoord.t = aVertexPosition.y + 0.5;
 
   gl_Position = uProjectionMatrix*uModelViewMatrix*vec4(aVertexPosition, 1.0);
 }
 `;
 
 
+// from my original teapot
+// var vs = `#version 300 es
+//     attribute vec3 aVertexPosition;
+//     attribute vec3 aVertexNormal;
+
+//     uniform mat4 uModelViewMatrix;
+//     uniform mat3 uNormalMatrix;
+//     uniform mat4 uProjectionMatrix;
+
+//     varying vec4 vColor;
+
+//     void main() {
+//       vec3 n = uNormalMatrix*aVertexNormal;
+
+//       // diffuse lighting from viewer headlight
+//       vColor = vec4(n.z,n.z,n.z,1.0);
+
+//       gl_Position = uProjectionMatrix*uModelViewMatrix*vec4(aVertexPosition, 1.0);
+//     }
+//   `;
 
 //
 // a default fragment shader implemented as a backquoted string variable
@@ -62,58 +75,17 @@ precision mediump float;
     
 in vec3 vNormal;
 in vec2 vTexCoord;
-in vec3 orig_vertex;
-
-in vec3 n,l,v;
-
 uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
 
 out vec4 outColor;
-
-float my_max(float x, float y)
-{
-    if (x > y) return x;
-    return y;
-}
-
-float dot_prod(vec3 v1, vec3 v2)
-{
-    return my_max(v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2], 0.0);
-}
-
-float my_exp(float base, int n){
-    float ans = 1.0;
-    while(n > 0){
-        ans = ans * base;
-        n = n - 1;
-    }
-    return ans;
-}
-
-vec3 my_reflect(vec3 n, vec3 l){
-    return 2.0 * dot_prod(n,l) * n - l;
-}
     
 void main() {
   vec3 illinois = vec3(texture(uSampler, vTexCoord));
   vec3 stadium = vec3(texture(uSampler2, vTexCoord));
   vec3 c = 0.5*illinois + 0.5*stadium;
 
-  vec3 normalized_n = normalize(n);
-  vec3 normalized_l = normalize(l);
-  vec3 normalized_v = normalize(v);
-  vec3 r = my_reflect(n,l);
-  
-  int GLEAM_EXPONENT = 10;
-  float diffuse_component = 0.5 * dot_prod(normalized_n,normalized_l);
-  float specular_component = 0.5 * my_exp(dot_prod(normalized_v,r), GLEAM_EXPONENT);
-
-  outColor = vec4(n,1.0);
-
-  outColor[0] = c[0]*diffuse_component + specular_component;
-  outColor[1] = c[1]*diffuse_component + specular_component;
-  outColor[2] = c[2]*diffuse_component + specular_component;
+  outColor = vec4(c,1.0);
 }
 `;
 
@@ -291,7 +263,7 @@ function loadshaders(vertexShaderSource,fragmentShaderSource) {
 //
 
 function draw(time) {
-  gl.clearColor(0.0, (0.0 + .0001*time) % 1.0, (0.0 + .00015*time) % 1.0, 1.0);
+  gl.clearColor(0.075, 0.16, 0.294, 1.0);
   gl.clearDepth(1.0);
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
@@ -299,8 +271,7 @@ function draw(time) {
 
   modelview = glMatrix.mat4.create();
   glMatrix.mat4.translate(modelview,modelview,[0.0, 0.0, -2.0]);
-  glMatrix.mat4.rotateY(modelview,modelview, 2.1 + (time*0.001) % 2 );
-  glMatrix.mat4.rotateX(modelview,modelview, -.25);
+  glMatrix.mat4.rotateY(modelview,modelview, time*0.001);
 
   normalmatrix = glMatrix.mat3.create();
   glMatrix.mat3.normalFromMat4(normalmatrix,modelview);
